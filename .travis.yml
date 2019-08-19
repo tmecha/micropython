@@ -37,15 +37,13 @@ jobs:
         - git submodule update --init lib/berkeley-db-1.xx
         - make ${MAKEOPTS} -C mpy-cross
         - make ${MAKEOPTS} -C ports/esp32 ESPIDF=$(pwd)/esp-idf
-        - exp_dir = bin-export/$TRAVIS_TAG
-        - echo $exp_dir
-        - mkdir $exp_dir
-        - mv ports/esp32/build-GENERIC/firmware.bin $exp_dir/firmware.bin
-        - mv ports/esp32/build-GENERIC/application.bin $exp_dir/application.bin
-        - mv ports/esp32/build-GENERIC/application.elf $exp_dir/application.elf
-        - mv ports/esp32/build-GENERIC/bootloader.bin $exp_dir/bootloader.bin
-        - mv ports/esp32/build-GENERIC/bootloader.elf $exp_dir/bootloader.elf
-        - mv ports/esp32/build-GENERIC/bootloader.map $exp_dir/bootloader.map
+        - mkdir bin-export/esp32build/
+        - mv ports/esp32/build-GENERIC/firmware.bin bin-export/esp32build/firmware.bin
+        - mv ports/esp32/build-GENERIC/application.bin bin-export/esp32build/application.bin
+        - mv ports/esp32/build-GENERIC/application.elf bin-export/esp32build/application.elf
+        - mv ports/esp32/build-GENERIC/bootloader.bin bin-export/esp32build/bootloader.bin
+        - mv ports/esp32/build-GENERIC/bootloader.elf bin-export/esp32build/bootloader.elf
+        - mv ports/esp32/build-GENERIC/bootloader.map bin-export/esp32build/bootloader.map
       deploy:
         provider: s3
         access_key_id: "$YOUR_AWS_ACCESS_KEY"
