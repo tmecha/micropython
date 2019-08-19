@@ -52,4 +52,4 @@ jobs:
         bucket: "esp32-test"
         region: us-west-1
         skip_cleanup: true
-        upload_dir: bin-export
+        local_dir: bin-export
