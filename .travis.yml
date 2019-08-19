@@ -39,8 +39,8 @@ jobs:
         - make ${MAKEOPTS} -C ports/esp32 ESPIDF=$(pwd)/esp-idf
       deploy:
         provider: s3
-        access_key_id: "AKIA5IT3WLP44PQ4V25P"
-        secret_access_key: "FHOqbt/E0qOzyvg1aiW1M5Vr0ZlBBf/ot1w6CONz"
+        access_key_id: "YOUR_AWS_ACCESS_KEY"
+        secret_access_key: "YOUR_AWS_SECRET_KEY"
         bucket: "esp32-test"
-        local_dir: build
+        local_dir: build-GENERIC
         skip_cleanup: true
