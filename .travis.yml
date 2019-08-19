@@ -37,7 +37,7 @@ jobs:
         - git submodule update --init lib/berkeley-db-1.xx
         - make ${MAKEOPTS} -C mpy-cross
         - make ${MAKEOPTS} -C ports/esp32 ESPIDF=$(pwd)/esp-idf
-        - $exp_dir = bin-export/micropython-esp32-$(date +%Y%m%d_%H%M%S)
+        - exp_dir = bin-export/micropython-esp32-$(date +%Y%m%d_%H%M%S)
         - echo $exp_dir
         - mkdir $exp_dir
         - mv ports/esp32/build-GENERIC/firmware.bin $exp_dir/firmware.bin
