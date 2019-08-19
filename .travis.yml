@@ -37,7 +37,7 @@ jobs:
         - git submodule update --init lib/berkeley-db-1.xx
         - make ${MAKEOPTS} -C mpy-cross
         - make ${MAKEOPTS} -C ports/esp32 ESPIDF=$(pwd)/esp-idf
-        - mkdir bin-export/esp32build/
+        - mkdir -p bin-export/esp32build/
         - mv ports/esp32/build-GENERIC/firmware.bin bin-export/esp32build/firmware.bin
         - mv ports/esp32/build-GENERIC/application.bin bin-export/esp32build/application.bin
         - mv ports/esp32/build-GENERIC/application.elf bin-export/esp32build/application.elf
