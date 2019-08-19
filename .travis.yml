@@ -37,10 +37,19 @@ jobs:
         - git submodule update --init lib/berkeley-db-1.xx
         - make ${MAKEOPTS} -C mpy-cross
         - make ${MAKEOPTS} -C ports/esp32 ESPIDF=$(pwd)/esp-idf
+        - mkdir bin-export
+        - ls
+        - mv ports/esp32/build-GENERIC/firmware.bin bin-export/firmware.bin
+        - mv ports/esp32/build-GENERIC/application.bin bin-export/application.bin
+        - mv ports/esp32/build-GENERIC/application.elf bin-export/application.elf
+        - mv ports/esp32/build-GENERIC/bootloader.bin bin-export/bootloader.bin
+        - mv ports/esp32/build-GENERIC/bootloader.elf bin-export/bootloader.elf
+        - mv ports/esp32/build-GENERIC/bootloader.map bin-export/bootloader.map
       deploy:
         provider: s3
         access_key_id: "$YOUR_AWS_ACCESS_KEY"
         secret_access_key: "$YOUR_AWS_SECRET_KEY"
         bucket: "esp32-test"
+        region: us-west-1
         skip_cleanup: true
-        upload_dir: ports/esp32/build-GENERIC
+        upload_dir: bin-export
