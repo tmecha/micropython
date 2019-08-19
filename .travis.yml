@@ -42,5 +42,3 @@ jobs:
         access_key_id: "$YOUR_AWS_ACCESS_KEY"
         secret_access_key: "$YOUR_AWS_SECRET_KEY"
         bucket: "esp32-test"
-        local_dir: build-GENERIC
-        skip_cleanup: true
