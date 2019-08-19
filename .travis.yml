@@ -42,4 +42,5 @@ jobs:
         access_key_id: "AKIA5IT3WLP44PQ4V25P"
         secret_access_key: "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"
         bucket: "esp32-test"
+        local_dir: build
         skip_cleanup: true
