@@ -53,5 +53,4 @@ jobs:
         skip_cleanup: true
         local_dir: bin-export
         on:
-            branch: release
-            condition: true
+            all_branches: true
