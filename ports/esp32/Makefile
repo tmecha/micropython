@@ -209,6 +209,7 @@ SRC_C = \
 	machine_dac.c \
 	machine_i2c.c \
 	machine_pwm.c \
+	machine_dec.c \
 	machine_uart.c \
 	modmachine.c \
 	modnetwork.c \
