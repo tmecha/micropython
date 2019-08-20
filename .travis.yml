@@ -52,3 +52,6 @@ jobs:
         region: us-west-1
         skip_cleanup: true
         local_dir: bin-export
+        on:
+            branch: release
+            condition: true
