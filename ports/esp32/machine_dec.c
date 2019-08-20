@@ -44,9 +44,9 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
 {
     mp_arg_check_num(n_args, n_kw, 2, 3, true);
     int unit = mp_obj_get_int(args[0]);
-    gpio_num_t pin_a = machine_pin_get_gpio(args[1]);
+    gpio_num_t pin_a = machine_pin_get_id(args[1]);
     gpio_num_t pin_b = PCNT_PIN_NOT_USED;
-    if (n_args == 3) pin_b = machine_pin_get_gpio(args[2]);
+    if (n_args == 3) pin_b = machine_pin_get_id(args[2]);
 
     if (unit < 0 || unit > PCNT_UNIT_MAX)
         nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError, "Bad timer number %d", unit));
