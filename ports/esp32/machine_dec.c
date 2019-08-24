@@ -394,13 +394,13 @@ STATIC mp_obj_t mod_irq_event_Event_make_new(const mp_obj_type_t *type, size_t n
 
 // def Event.get_event(self) -> int
 STATIC mp_obj_t mod_irq_event_Event_get_event(mp_obj_t self) {
-    return mp_obj_new_int(&(self->event));
+    return mp_obj_new_int(self->event));
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_irq_event_Event_get_event_obj, mod_irq_event_Event_get_event);
 
 // def Event.get_event_count(self) -> int
 STATIC mp_obj_t mod_irq_event_Event_get_event_count(mp_obj_t self) {
-    return mp_obj_new_int(&(self->count));
+    return mp_obj_new_int(self->count));
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_irq_event_Event_get_event_count_obj, mod_irq_event_Event_get_event_count);
 
