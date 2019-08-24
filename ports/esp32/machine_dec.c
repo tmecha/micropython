@@ -386,7 +386,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_KW(machine_dec_irq_obj, 1, machine_dec_irq);
 STATIC mp_obj_t mod_irq_event_Event_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 2, 2, false);
     mp_obj_Event_t *self = m_new_obj(mp_obj_Event_t);
-    self->base.type = mod_irq_event_Event_type;
+    self->base.type = &mod_irq_event_Event_type;
 	self->event = mp_obj_get_int(args[0]);
 	self->count = mp_obj_get_int(args[1]);
     return MP_OBJ_FROM_PTR(self);
@@ -394,13 +394,13 @@ STATIC mp_obj_t mod_irq_event_Event_make_new(const mp_obj_type_t *type, size_t n
 
 // def Event.get_event(self) -> int
 STATIC mp_obj_t mod_irq_event_Event_get_event(mp_obj_t self) {
-    return mp_obj_new_int(self->event);
+    return mp_obj_new_int(&(self->event));
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_irq_event_Event_get_event_obj, mod_irq_event_Event_get_event);
 
 // def Event.get_event_count(self) -> int
 STATIC mp_obj_t mod_irq_event_Event_get_event_count(mp_obj_t self) {
-    return mp_obj_new_int(self->count);
+    return mp_obj_new_int(&(self->count));
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_irq_event_Event_get_event_count_obj, mod_irq_event_Event_get_event_count);
 
@@ -420,11 +420,13 @@ STATIC const mp_obj_type_t mod_irq_event_Event_type = {
 };
 
 //=====MODULE=========================================================
+/*
 STATIC const mp_rom_map_elem_t esp32_dec_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_DEC) },
     { MP_ROM_QSTR(MP_QSTR_Event), MP_ROM_PTR(&mod_irq_event_Event_type) },
 };
 STATIC MP_DEFINE_CONST_DICT(esp32_dec_globals, esp32_dec_globals_table);
+*/ 
 
 STATIC const mp_rom_map_elem_t esp32_dec_locals_dict_table[] = {
     // instance methods
@@ -453,5 +455,5 @@ const mp_obj_type_t machine_dec_type = {
     .print = esp32_dec_print,
     .make_new = esp32_dec_make_new,
     .locals_dict = (mp_obj_dict_t*)&esp32_dec_locals_dict,
-	.globals = (mp_obj_dict_t*)&esp32_dec_globals,
+	//.globals = (mp_obj_dict_t*)&esp32_dec_globals,
 };
