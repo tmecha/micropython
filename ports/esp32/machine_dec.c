@@ -236,15 +236,15 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
 	esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 	portBASE_TYPE res;
 	pcnt_evt_t evt;
-	pcnt_evt_obj_t event_obj;
+	pcnt_evt_obj_t *event_obj =  pvPortMalloc(sizeof(pcnt_evt_obj_t));
 
     /* Wait for the event information passed from PCNT's interrupt handler.
      * Once received, decode the event type and print it on the serial monitor.
      */
     res = xQueueReceive(self->event_queue, &evt, 0);
     if (res == pdTRUE) {
-    	event_obj.event = evt.event;
-    	event_obj.count = evt.count;
+    	event_obj->event = evt.event;
+    	event_obj->count = evt.count;
     	/*
         if (evt.event & PCNT_STATUS_THRES1_M) {
             printf("THRES1 EVT\n");
@@ -267,7 +267,7 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
     	return mp_const_none;
     }
     //return mp_const_none;
-    return MP_OBJ_FROM_PTR(&event_obj);
+    return MP_OBJ_FROM_PTR(event_obj); //todo: do we need to free this later? Garbage collect?
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_get_irq_event_obj, esp32_dec_get_irq_event);
 
