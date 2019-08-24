@@ -59,6 +59,9 @@ typedef struct {
     int16_t count;  // count captured in interrupt when event happened
 } pcnt_evt_t;
 
+//Forward declaration
+STATIC const mp_obj_type_t mod_irq_event_Event_type;
+
 /* A structure to return Python event objects
  *
  */
@@ -69,6 +72,7 @@ typedef struct {
     int16_t count;  // count captured in interrupt when event happened
 } pcnt_evt_obj_t;
 */
+
 // class Event(object):
 typedef struct _mp_obj_Event_t {
     mp_obj_base_t base;
@@ -133,7 +137,7 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
     self->chan_0.neg_mode = PCNT_COUNT_INC;
     self->chan_0.lctrl_mode = PCNT_MODE_KEEP;
     self->chan_0.hctrl_mode = PCNT_MODE_REVERSE;
-    self->chan_0.counter_h_lim =  INT16_MAX;    // don't care if interrupt is not used?
+    self->chan_0.counter_h_lim =  4000; //INT16_MAX;    // don't care if interrupt is not used?
     self->chan_0.counter_l_lim =  INT16_MIN;
 
     // configure timer channel 1
