@@ -400,7 +400,7 @@ STATIC mp_obj_t mod_irq_event_Event_get_event(mp_obj_t self_in) {
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_irq_event_Event_get_event_obj, mod_irq_event_Event_get_event);
 
 // def Event.get_event_count(self) -> int
-STATIC mp_obj_t mod_irq_event_Event_get_event_count(mp_obj_t self) {
+STATIC mp_obj_t mod_irq_event_Event_get_event_count(mp_obj_t self_in) {
 	mp_obj_Event_t *self = MP_OBJ_TO_PTR(self_in);
     return mp_obj_new_int(self->count));
 }
