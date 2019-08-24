@@ -251,7 +251,7 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
 	//pcnt_evt_obj_t *event_obj =  pvPortMalloc(sizeof(pcnt_evt_obj_t));
 
 	mp_obj_Event_t *event_obj = m_new_obj(mp_obj_Event_t);
-    event_obj->base.type = mod_irq_event_Event_type;
+    event_obj->base.type = &mod_irq_event_Event_type;
 	
     /* Wait for the event information passed from PCNT's interrupt handler.
      * Once received, decode the event type and print it on the serial monitor.
@@ -393,13 +393,15 @@ STATIC mp_obj_t mod_irq_event_Event_make_new(const mp_obj_type_t *type, size_t n
 }
 
 // def Event.get_event(self) -> int
-STATIC mp_obj_t mod_irq_event_Event_get_event(mp_obj_t self) {
+STATIC mp_obj_t mod_irq_event_Event_get_event(mp_obj_t self_in) {
+	mp_obj_Event_t *self = MP_OBJ_TO_PTR(self_in);
     return mp_obj_new_int(self->event));
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_irq_event_Event_get_event_obj, mod_irq_event_Event_get_event);
 
 // def Event.get_event_count(self) -> int
 STATIC mp_obj_t mod_irq_event_Event_get_event_count(mp_obj_t self) {
+	mp_obj_Event_t *self = MP_OBJ_TO_PTR(self_in);
     return mp_obj_new_int(self->count));
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_irq_event_Event_get_event_count_obj, mod_irq_event_Event_get_event_count);
