@@ -242,7 +242,7 @@ STATIC mp_obj_t esp32_dec_set_thresh0(mp_obj_t self_in, mp_obj_t thresh)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 	
-	(int16_t) thresh_int = mp_obj_get_int(thresh)
+	int16_t thresh_int = (int16_t) mp_obj_get_int(thresh)
 	
 	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, thresh_int);
 	pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
@@ -256,7 +256,7 @@ STATIC mp_obj_t esp32_dec_set_thresh1(mp_obj_t self_in, mp_obj_t thresh)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 	
-	(int16_t) thresh_int = mp_obj_get_int(thresh)
+	int16_t thresh_int = (int16_t) mp_obj_get_int(thresh)
 	
 	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, thresh_int);
 	pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
@@ -315,7 +315,7 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
     static const mp_arg_t allowed_args[] = {
         { MP_QSTR_handler, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_trigger, MP_ARG_INT, {.u_int = PCNT_EVT_L_LIM | PCNT_EVT_H_LIM | PCNT_EVT_THRES_0 | PCNT_EVT_THRES_1 | PCNT_EVT_ZERO} },
-//      { MP_QSTR_wake, MP_ARG_OBJ, {.u_obj = mp_const_none} },
+
     };
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
@@ -364,6 +364,23 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
 
         } 
 		*/
+		    	/*
+        if (trigger & PCNT_STATUS_THRES1_M) {
+            printf("THRES1 EVT\n");
+        }
+        if (trigger & PCNT_STATUS_THRES0_M) {
+            printf("THRES0 EVT\n");
+        }
+        if (trigger & PCNT_STATUS_L_LIM_M) {
+            printf("L_LIM EVT\n");
+        }
+        if (trigger & PCNT_STATUS_H_LIM_M) {
+            printf("H_LIM EVT\n");
+        }
+        if (trigger & PCNT_STATUS_ZERO_M) {
+            printf("ZERO EVT\n");
+        }
+        */
 
 		/* Enable events on zero, maximum and minimum limit values */
 		pcnt_event_enable(self->unit, PCNT_EVT_H_LIM);
