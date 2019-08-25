@@ -282,23 +282,23 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
     if (res == pdTRUE) {
 		event_obj->event = evt.event;
 		event_obj->count = evt.count;
-    	/*
+    	
         if (evt.event & PCNT_STATUS_THRES1_M) {
-            printf("THRES1 EVT\n");
+            printf("THRES1 EVT %d\n", evt.event);
         }
         if (evt.event & PCNT_STATUS_THRES0_M) {
-            printf("THRES0 EVT\n");
+            printf("THRES0 EVT %d\n", evt.event);
         }
         if (evt.event & PCNT_STATUS_L_LIM_M) {
-            printf("L_LIM EVT\n");
+            printf("L_LIM EVT %d\n", evt.event);
         }
         if (evt.event & PCNT_STATUS_H_LIM_M) {
-            printf("H_LIM EVT\n");
+            printf("H_LIM EVT %d\n", evt.event);
         }
         if (evt.event & PCNT_STATUS_ZERO_M) {
-            printf("ZERO EVT\n");
+            printf("ZERO EVT %d\n", evt.event);
         }
-        */
+        
     } else {
     	//No value in queue
     	return mp_const_none;
