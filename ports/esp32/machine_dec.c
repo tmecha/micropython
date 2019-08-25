@@ -129,8 +129,9 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
     self->chan_0.ctrl_gpio_num = pin_b;
     self->chan_0.unit = unit;
 	// What to do on the positive / negative edge of pulse input?
-    self->chan_0.pos_mode = PCNT_COUNT_DEC;
-    self->chan_0.neg_mode = PCNT_COUNT_INC;
+	//todo: Configure edge mode via input argument
+    self->chan_0.pos_mode = PCNT_COUNT_INC;
+    self->chan_0.neg_mode = PCNT_COUNT_DIS;
 	// What to do when control input is low or high?
     self->chan_0.lctrl_mode = PCNT_MODE_KEEP;
     self->chan_0.hctrl_mode = PCNT_MODE_REVERSE;
@@ -145,8 +146,8 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
     self->chan_1.ctrl_gpio_num = pin_a;
     self->chan_1.unit = unit;
 	// What to do on the positive / negative edge of pulse input?
-    self->chan_1.pos_mode = PCNT_COUNT_DEC;
-    self->chan_1.neg_mode = PCNT_COUNT_INC;
+    self->chan_1.pos_mode = PCNT_COUNT_INC;
+    self->chan_1.neg_mode = PCNT_COUNT_DIS;
 	// What to do when control input is low or high?
     self->chan_1.lctrl_mode = PCNT_MODE_REVERSE;
     self->chan_1.hctrl_mode = PCNT_MODE_KEEP;
