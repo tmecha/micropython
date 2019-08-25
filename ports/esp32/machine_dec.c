@@ -242,7 +242,7 @@ STATIC mp_obj_t esp32_dec_set_thresh0(mp_obj_t self_in, mp_obj_t thresh)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 	
-	int16_t thresh_int = (int16_t) mp_obj_get_int(thresh)
+	int16_t thresh_int = (int16_t) mp_obj_get_int(thresh);
 	
 	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, thresh_int);
 	pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
@@ -256,7 +256,7 @@ STATIC mp_obj_t esp32_dec_set_thresh1(mp_obj_t self_in, mp_obj_t thresh)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 	
-	int16_t thresh_int = (int16_t) mp_obj_get_int(thresh)
+	int16_t thresh_int = (int16_t) mp_obj_get_int(thresh);
 	
 	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, thresh_int);
 	pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
@@ -321,85 +321,59 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
+	/* install ISR if not already */
     static bool did_install_isr = false;
     if (!did_install_isr) {
     	pcnt_isr_service_install(0);
         did_install_isr = true;
     }
 
+	/* Initialize PCNT event queue */
     if (self->event_queue == MP_OBJ_NULL)
     {
-        /* Initialize PCNT event queue */
         self->event_queue = xQueueCreate(10, sizeof(pcnt_evt_t));
     }
     else
     {
-    	//todo: reset and clear event queue
+		//queue was already created, reset
+    	xQueueReset(self->event_queue)
     }
 
     if (n_args > 1 || kw_args->used != 0) {
         // configure irq
         self->handler = args[ARG_handler].u_obj;
         uint32_t trigger = args[ARG_trigger].u_int;
-//		mp_obj_t wake_obj = args[ARG_wake].u_obj;
 
-		/*
-        if ( wake_obj != mp_const_none) {
-            mp_int_t wake;
-            if (mp_obj_get_int_maybe(wake_obj, &wake)) {
-                if (wake < 2 || wake > 7) {
-                    mp_raise_ValueError("bad wake value");
-                }
-            } else {
-                mp_raise_ValueError("bad wake value");
-            }
+		//Check handler is not None
+		if (self->handler == mp_const_none) {
+			self->handler = MP_OBJ_NULL;
+			mp_raise_ValueError("Invalid handler argument");
+		}
 
-            if (machine_rtc_config.wake_on_touch) { // not compatible
-                mp_raise_ValueError("no resources");
-            }
-
-            if (!RTC_IS_VALID_EXT_PIN(self->id)) {
-                mp_raise_ValueError("invalid pin for wake");
-            }
-
-        } 
-		*/
-		    	/*
+		/* Enable events on zero, maximum and minimum limit values */
+        if (trigger & PCNT_STATUS_L_LIM_M) {
+            pcnt_event_enable(self->unit, PCNT_EVT_L_LIM);
+        }
+        if (trigger & PCNT_STATUS_H_LIM_M) {
+			pcnt_event_enable(self->unit, PCNT_EVT_H_LIM);
+        }
+        if (trigger & PCNT_STATUS_ZERO_M) {
+            pcnt_event_enable(self->unit, PCNT_EVT_ZERO);
+        }
+ 		/*
         if (trigger & PCNT_STATUS_THRES1_M) {
             printf("THRES1 EVT\n");
         }
         if (trigger & PCNT_STATUS_THRES0_M) {
             printf("THRES0 EVT\n");
         }
-        if (trigger & PCNT_STATUS_L_LIM_M) {
-            printf("L_LIM EVT\n");
-        }
-        if (trigger & PCNT_STATUS_H_LIM_M) {
-            printf("H_LIM EVT\n");
-        }
-        if (trigger & PCNT_STATUS_ZERO_M) {
-            printf("ZERO EVT\n");
-        }
-        */
-
-		/* Enable events on zero, maximum and minimum limit values */
-		pcnt_event_enable(self->unit, PCNT_EVT_H_LIM);
-		pcnt_event_enable(self->unit, PCNT_EVT_L_LIM);
-		pcnt_event_enable(self->unit, PCNT_EVT_ZERO);
-		
-		//todo: why is this:
-		if (self->handler == mp_const_none) {
-			self->handler = MP_OBJ_NULL;
-			trigger = 0;
-		}
+		*/
 		
 		/* Register ISR handler and enable interrupts for PCNT unit */ 
 		pcnt_isr_handler_add(self->unit, machine_cnt_isr_handler, (void*)self);
 		pcnt_intr_enable(self->unit);
     }
 
-    // return the irq object
-    // return MP_OBJ_FROM_PTR(&machine_dec_irq_object[self->id]);
     return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(machine_dec_irq_obj, 1, machine_dec_irq);
