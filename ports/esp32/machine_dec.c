@@ -309,7 +309,7 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_get_irq_event_obj, esp32_dec_get_irq_event);
 
 //-----------------------------------------------------------------
-// dec.irq(handler=None, trigger=IRQ_FALLING|IRQ_RISING)
+// dec.irq(handler=None, trigger=PCNT_EVT_L_LIM | PCNT_EVT_H_LIM | PCNT_EVT_THRES_0 | PCNT_EVT_THRES_1 | PCNT_EVT_ZERO)
 STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_handler, ARG_trigger, ARG_wake };
     static const mp_arg_t allowed_args[] = {
@@ -336,7 +336,7 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
     else
     {
 		//queue was already created, reset
-    	xQueueReset(self->event_queue)
+    	xQueueReset(self->event_queue);
     }
 
     if (n_args > 1 || kw_args->used != 0) {
