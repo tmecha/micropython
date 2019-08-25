@@ -1,4 +1,4 @@
-im/*
+/*
  * This file is part of the Micro Python project, http://micropython.org/
  *
  * The MIT License (MIT)
