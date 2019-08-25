@@ -1,4 +1,4 @@
-/*
+im/*
  * This file is part of the Micro Python project, http://micropython.org/
  *
  * The MIT License (MIT)
@@ -456,6 +456,6 @@ const mp_obj_type_t machine_dec_type = {
     .name = MP_QSTR_DEC,
     .print = esp32_dec_print,
     .make_new = esp32_dec_make_new,
-    .locals_dict = (mp_obj_dict_t*)&esp32_dec_locals_dict,
+    .locals_dict = (mp_obj_t)&esp32_dec_locals_dict,
 	//.globals = (mp_obj_dict_t*)&esp32_dec_globals,
 };
