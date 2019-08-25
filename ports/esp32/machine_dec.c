@@ -303,7 +303,7 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
 			} status_unit[8];
 		*/
 		
-		event_return = 0;
+		uint32_t event_return = 0;
 		
         if (evt.event & PCNT_STATUS_THRES1_M) {
             printf("THRES1 EVT %d\n", evt.event);
