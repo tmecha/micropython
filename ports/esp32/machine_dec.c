@@ -393,7 +393,7 @@ STATIC mp_obj_t mod_irq_event_Event_make_new(const mp_obj_type_t *type, size_t n
 // def Event.get_event(self) -> int
 STATIC mp_obj_t mod_irq_event_Event_get_event(mp_obj_t self_in) {
 	mp_obj_Event_t *self = MP_OBJ_TO_PTR(self_in);
-    return mp_obj_new_int(self->event);
+    return mp_obj_new_int_from_uint(self->event);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_irq_event_Event_get_event_obj, mod_irq_event_Event_get_event);
 
