@@ -306,23 +306,23 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
 		uint32_t event_return = 0;
 		
         if (evt.event & PCNT_STATUS_THRES1_M) {
-            printf("THRES1 EVT %d\n", evt.event);
+            //printf("THRES1 EVT %d\n", evt.event);
 			event_return |= EVT_THRES_1;
         }
         if (evt.event & PCNT_STATUS_THRES0_M) {
-            printf("THRES0 EVT %d\n", evt.event);
+            //printf("THRES0 EVT %d\n", evt.event);
 			event_return |= EVT_THRES_0;
         }
         if (evt.event & PCNT_STATUS_L_LIM_M) {
-            printf("L_LIM EVT %d\n", evt.event);
+            //printf("L_LIM EVT %d\n", evt.event);
 			event_return |= EVT_L_LIM;
         }
         if (evt.event & PCNT_STATUS_H_LIM_M) {
-            printf("H_LIM EVT %d\n", evt.event);
+            //printf("H_LIM EVT %d\n", evt.event);
 			event_return |= EVT_H_LIM;
         }
         if (evt.event & PCNT_STATUS_ZERO_M) {
-            printf("ZERO EVT %d\n", evt.event);
+            //printf("ZERO EVT %d\n", evt.event);
 			event_return |= EVT_ZERO;
         }
 		
