@@ -54,24 +54,12 @@ typedef struct _esp32_dec_obj_t {
  * interrupt handler to the main program.
  */
 typedef struct {
-    // int unit;  // the PCNT unit that originated an interrupt
     uint32_t event; // information on the event type that caused the interrupt
     int16_t count;  // count captured in interrupt when event happened
 } pcnt_evt_t;
 
 //Forward declaration
 STATIC const mp_obj_type_t mod_irq_event_Event_type;
-
-/* A structure to return Python event objects
- *
- */
- /*
-typedef struct {
-	mp_obj_base_t base;
-    uint32_t event; // information on the event type that caused the interrupt
-    int16_t count;  // count captured in interrupt when event happened
-} pcnt_evt_obj_t;
-*/
 
 // class Event(object):
 typedef struct _mp_obj_Event_t {
@@ -91,7 +79,6 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
     pcnt_evt_t event;
 
 	if (intr_status & (BIT(self->unit))) {
-		//event.unit = self->unit;
 		/* Save the PCNT event type that caused an interrupt
 		   to pass it to the main program */
 		event.event = PCNT.status_unit[self->unit].val;
@@ -125,31 +112,39 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
     self->base.type = &machine_dec_type;
     self->unit = unit;
 
-    //Set interrupt event queue to null for now
+    //Set interrupt event queue to uninitialized null for now
     self->event_queue = MP_OBJ_NULL;
 
-    // configure timer channel 0
+    //------ configure timer channel 0
     self->chan_0.channel = PCNT_CHANNEL_0;
+	// Set PCNT input signal and control GPIOs
     self->chan_0.pulse_gpio_num = pin_a;    // reverse from channel 1
     self->chan_0.ctrl_gpio_num = pin_b;
     self->chan_0.unit = unit;
+	// What to do on the positive / negative edge of pulse input?
     self->chan_0.pos_mode = PCNT_COUNT_DEC;
     self->chan_0.neg_mode = PCNT_COUNT_INC;
+	// What to do when control input is low or high?
     self->chan_0.lctrl_mode = PCNT_MODE_KEEP;
     self->chan_0.hctrl_mode = PCNT_MODE_REVERSE;
-    self->chan_0.counter_h_lim =  4000; //INT16_MAX;    // don't care if interrupt is not used?
+	// Set the maximum and minimum limit values to watch
+    self->chan_0.counter_h_lim =  INT16_MAX;
     self->chan_0.counter_l_lim =  INT16_MIN;
 
-    // configure timer channel 1
+    //------ configure timer channel 1
     self->chan_1.channel = PCNT_CHANNEL_1;
+	// Set PCNT input signal and control GPIOs
     self->chan_1.pulse_gpio_num = pin_b;    // reverse from channel 0
     self->chan_1.ctrl_gpio_num = pin_a;
     self->chan_1.unit = unit;
+	// What to do on the positive / negative edge of pulse input?
     self->chan_1.pos_mode = PCNT_COUNT_DEC;
     self->chan_1.neg_mode = PCNT_COUNT_INC;
+	// What to do when control input is low or high?
     self->chan_1.lctrl_mode = PCNT_MODE_REVERSE;
     self->chan_1.hctrl_mode = PCNT_MODE_KEEP;
-    self->chan_1.counter_h_lim =  INT16_MAX;    // don't care if interrupt is not used?
+	// Set the maximum and minimum limit values to watch
+    self->chan_1.counter_h_lim =  INT16_MAX;
     self->chan_1.counter_l_lim =  INT16_MIN;
 
     if (n_args == 2) {
@@ -195,7 +190,7 @@ STATIC mp_obj_t esp32_dec_count(mp_obj_t self_in)
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 
     int16_t count;
-    pcnt_get_counter_value(self->chan_0.unit, &count);
+    pcnt_get_counter_value(self->unit, &count);
     return MP_OBJ_NEW_SMALL_INT(count);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_count_obj, esp32_dec_count);
@@ -206,8 +201,8 @@ STATIC mp_obj_t esp32_dec_count_and_clear(mp_obj_t self_in)
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 
     int16_t count;
-    pcnt_get_counter_value(self->chan_0.unit, &count);
-    pcnt_counter_clear(self->chan_0.unit);
+    pcnt_get_counter_value(self->unit, &count);
+    pcnt_counter_clear(self->unit);
     return MP_OBJ_NEW_SMALL_INT(count);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_count_and_clear_obj, esp32_dec_count_and_clear);
@@ -216,7 +211,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_count_and_clear_obj, esp32_dec_count_
 STATIC mp_obj_t esp32_dec_clear(mp_obj_t self_in)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    pcnt_counter_clear(self->chan_0.unit);
+    pcnt_counter_clear(self->unit);
 
     return mp_const_none;
 }
@@ -226,7 +221,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_clear_obj, esp32_dec_clear);
 STATIC mp_obj_t esp32_dec_pause(mp_obj_t self_in)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    pcnt_counter_pause(self->chan_0.unit);
+    pcnt_counter_pause(self->unit);
 
     return mp_const_none;
 }
@@ -236,11 +231,39 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_pause_obj, esp32_dec_pause);
 STATIC mp_obj_t esp32_dec_resume(mp_obj_t self_in)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    pcnt_counter_resume(self->chan_0.unit);
+    pcnt_counter_resume(self->unit);
 
     return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_resume_obj, esp32_dec_resume);
+
+//-----------------------------------------------------------------
+STATIC mp_obj_t esp32_dec_set_thresh0(mp_obj_t self_in, mp_obj_t thresh)
+{
+    esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
+	
+	(int16_t) thresh_int = mp_obj_get_int(thresh)
+	
+	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, thresh_int);
+	pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(esp32_dec_set_thresh0_obj, esp32_dec_set_thresh0);
+
+//-----------------------------------------------------------------
+STATIC mp_obj_t esp32_dec_set_thresh1(mp_obj_t self_in, mp_obj_t thresh)
+{
+    esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
+	
+	(int16_t) thresh_int = mp_obj_get_int(thresh)
+	
+	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, thresh_int);
+	pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(esp32_dec_set_thresh1_obj, esp32_dec_set_thresh1);
 
 //-----------------------------------------------------------------
 STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
@@ -248,7 +271,6 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
 	esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 	portBASE_TYPE res;
 	pcnt_evt_t evt;
-	//pcnt_evt_obj_t *event_obj =  pvPortMalloc(sizeof(pcnt_evt_obj_t));
 
 	mp_obj_Event_t *event_obj = m_new_obj(mp_obj_Event_t);
     event_obj->base.type = &mod_irq_event_Event_type;
@@ -343,33 +365,18 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
         } 
 		*/
 
-		/* Set threshold 0 and 1 values and enable events to watch */
-		/*
-		pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, PCNT_THRESH1_VAL);
-		pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
-		pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, PCNT_THRESH0_VAL);
-		pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
-		*/
 		/* Enable events on zero, maximum and minimum limit values */
 		pcnt_event_enable(self->unit, PCNT_EVT_H_LIM);
 		pcnt_event_enable(self->unit, PCNT_EVT_L_LIM);
 		pcnt_event_enable(self->unit, PCNT_EVT_ZERO);
 		
+		//todo: why is this:
 		if (self->handler == mp_const_none) {
 			self->handler = MP_OBJ_NULL;
 			trigger = 0;
 		}
 		
-		/* // This is how GPIO module does it.
-		gpio_isr_handler_remove(self->id);
-		MP_STATE_PORT(machine_pin_irq_handler)[self->id] = handler;
-		gpio_set_intr_type(self->id, trigger);
-		gpio_isr_handler_add(self->id, machine_pin_isr_handler, (void*)self);
-		*/
-		
-		/* Register ISR handler and enable interrupts for PCNT unit */
-		//pcnt_isr_register(machine_cnt_isr_handler, NULL, 0, &user_isr_handle);
-		//todo: Need to assign different handler for each different unit. 
+		/* Register ISR handler and enable interrupts for PCNT unit */ 
 		pcnt_isr_handler_add(self->unit, machine_cnt_isr_handler, (void*)self);
 		pcnt_intr_enable(self->unit);
     }
@@ -437,6 +444,8 @@ STATIC const mp_rom_map_elem_t esp32_dec_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_clear), MP_ROM_PTR(&esp32_dec_clear_obj) },
     { MP_ROM_QSTR(MP_QSTR_pause), MP_ROM_PTR(&esp32_dec_pause_obj) },
     { MP_ROM_QSTR(MP_QSTR_resume), MP_ROM_PTR(&esp32_dec_resume_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_set_thresh0), MP_ROM_PTR(&esp32_dec_set_thresh0_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_set_thresh1), MP_ROM_PTR(&esp32_dec_set_thresh1_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_irq), MP_ROM_PTR(&machine_dec_irq_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_get_irq_event), MP_ROM_PTR(&esp32_dec_get_irq_event_obj) },
 	
