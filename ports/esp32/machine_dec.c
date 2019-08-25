@@ -36,8 +36,15 @@
 #include "modmachine.h"
 #include "mphalport.h"
 
-//pcnt_isr_handle_t user_isr_handle = NULL; //user's ISR service handle // got rid when switched to independent timer handlers
-
+/*
+ * Common event names
+ */
+#define EVT_L_LIM     1
+#define EVT_H_LIM     2
+#define EVT_THRES_0   4
+#define EVT_THRES_1   8
+#define EVT_ZERO      16
+ 
 /* Counter structure
  * 
  */
@@ -280,24 +287,49 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
      */
     res = xQueueReceive(self->event_queue, &evt, 0);
     if (res == pdTRUE) {
-		event_obj->event = evt.event;
-		event_obj->count = evt.count;
-    	
+		/*
+		//todo: implement cnt_mode
+					union {
+				struct {
+					uint32_t cnt_mode:2;                    //0: positive value to zero; 1: negative value to zero; 2: counter value negative ; 3: counter value positive
+					uint32_t thres1_lat:1;                  // counter value equals to thresh1
+					uint32_t thres0_lat:1;                  // counter value equals to thresh0
+					uint32_t l_lim_lat:1;                   // counter value reaches h_lim
+					uint32_t h_lim_lat:1;                   // counter value reaches l_lim
+					uint32_t zero_lat:1;                    // counter value equals zero
+					uint32_t reserved7:25;
+				};
+				uint32_t val;
+			} status_unit[8];
+		*/
+		
+		event_return = 0;
+		
         if (evt.event & PCNT_STATUS_THRES1_M) {
             printf("THRES1 EVT %d\n", evt.event);
+			event_return |= EVT_THRES_1;
         }
         if (evt.event & PCNT_STATUS_THRES0_M) {
             printf("THRES0 EVT %d\n", evt.event);
+			event_return |= EVT_THRES_0;
         }
         if (evt.event & PCNT_STATUS_L_LIM_M) {
             printf("L_LIM EVT %d\n", evt.event);
+			event_return |= EVT_L_LIM;
         }
         if (evt.event & PCNT_STATUS_H_LIM_M) {
             printf("H_LIM EVT %d\n", evt.event);
+			event_return |= EVT_H_LIM;
         }
         if (evt.event & PCNT_STATUS_ZERO_M) {
             printf("ZERO EVT %d\n", evt.event);
+			event_return |= EVT_ZERO;
         }
+		
+		//event_obj->event = evt.event;
+		event_obj->event = event_return;
+		event_obj->count = evt.count;
+    	
         
     } else {
     	//No value in queue
@@ -309,12 +341,12 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_get_irq_event_obj, esp32_dec_get_irq_event);
 
 //-----------------------------------------------------------------
-// dec.irq(handler=None, trigger=PCNT_EVT_L_LIM | PCNT_EVT_H_LIM | PCNT_EVT_THRES_0 | PCNT_EVT_THRES_1 | PCNT_EVT_ZERO)
+// dec.irq(handler=None, trigger=EVT_L_LIM | EVT_H_LIM | EVT_THRES_0 | EVT_THRES_1 | EVT_ZERO)
 STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_handler, ARG_trigger, ARG_wake };
     static const mp_arg_t allowed_args[] = {
         { MP_QSTR_handler, MP_ARG_OBJ, {.u_obj = mp_const_none} },
-        { MP_QSTR_trigger, MP_ARG_INT, {.u_int = PCNT_EVT_L_LIM | PCNT_EVT_H_LIM | PCNT_EVT_THRES_0 | PCNT_EVT_THRES_1 | PCNT_EVT_ZERO} },
+        { MP_QSTR_trigger, MP_ARG_INT, {.u_int = EVT_L_LIM | EVT_H_LIM | EVT_THRES_0 | EVT_THRES_1 | EVT_ZERO} },
 
     };
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
@@ -351,20 +383,20 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
 		}
 
 		/* Enable events on zero, maximum and minimum limit values */
-        if (trigger & PCNT_STATUS_L_LIM_M) {
+        if (trigger & EVT_L_LIM) {
             pcnt_event_enable(self->unit, PCNT_EVT_L_LIM);
         }
-        if (trigger & PCNT_STATUS_H_LIM_M) {
+        if (trigger & EVT_H_LIM) {
 			pcnt_event_enable(self->unit, PCNT_EVT_H_LIM);
         }
-        if (trigger & PCNT_STATUS_ZERO_M) {
+        if (trigger & EVT_ZERO) {
             pcnt_event_enable(self->unit, PCNT_EVT_ZERO);
         }
  		/*
-        if (trigger & PCNT_STATUS_THRES1_M) {
+        if (trigger & EVT_THRES1_M) {
             printf("THRES1 EVT\n");
         }
-        if (trigger & PCNT_STATUS_THRES0_M) {
+        if (trigger & EVT_THRES0_M) {
             printf("THRES0 EVT\n");
         }
 		*/
@@ -441,11 +473,11 @@ STATIC const mp_rom_map_elem_t esp32_dec_locals_dict_table[] = {
 	{ MP_ROM_QSTR(MP_QSTR_get_irq_event), MP_ROM_PTR(&esp32_dec_get_irq_event_obj) },
 	
 	//class constants
-	{ MP_ROM_QSTR(MP_QSTR_EVT_L_LIM), MP_ROM_INT(PCNT_EVT_L_LIM) },
-	{ MP_ROM_QSTR(MP_QSTR_EVT_H_LIM), MP_ROM_INT(PCNT_EVT_H_LIM) },
-	{ MP_ROM_QSTR(MP_QSTR_EVT_THRES_0), MP_ROM_INT(PCNT_EVT_THRES_0) },
-	{ MP_ROM_QSTR(MP_QSTR_EVT_THRES_1), MP_ROM_INT(PCNT_EVT_THRES_1) },
-	{ MP_ROM_QSTR(MP_QSTR_EVT_ZERO), MP_ROM_INT(PCNT_EVT_ZERO) },
+	{ MP_ROM_QSTR(MP_QSTR_EVT_L_LIM), MP_ROM_INT(EVT_L_LIM) },
+	{ MP_ROM_QSTR(MP_QSTR_EVT_H_LIM), MP_ROM_INT(EVT_H_LIM) },
+	{ MP_ROM_QSTR(MP_QSTR_EVT_THRES_0), MP_ROM_INT(EVT_THRES_0) },
+	{ MP_ROM_QSTR(MP_QSTR_EVT_THRES_1), MP_ROM_INT(EVT_THRES_1) },
+	{ MP_ROM_QSTR(MP_QSTR_EVT_ZERO), MP_ROM_INT(EVT_ZERO) },
 	
 };
 STATIC MP_DEFINE_CONST_DICT(esp32_dec_locals_dict, esp32_dec_locals_dict_table);
