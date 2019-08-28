@@ -36,8 +36,15 @@
 #include "modmachine.h"
 #include "mphalport.h"
 
-//pcnt_isr_handle_t user_isr_handle = NULL; //user's ISR service handle // got rid when switched to independent timer handlers
-
+/*
+ * Common event names
+ */
+#define EVT_L_LIM     1
+#define EVT_H_LIM     2
+#define EVT_THRES_0   4
+#define EVT_THRES_1   8
+#define EVT_ZERO      16
+ 
 /* Counter structure
  * 
  */
@@ -55,19 +62,19 @@ typedef struct _esp32_dec_obj_t {
  * interrupt handler to the main program.
  */
 typedef struct {
-    // int unit;  // the PCNT unit that originated an interrupt
     uint32_t event; // information on the event type that caused the interrupt
     int16_t count;  // count captured in interrupt when event happened
 } pcnt_evt_t;
 
-/* A structure to return Python event objects
- *
- */
-typedef struct {
-	mp_obj_base_t base;
-    uint32_t event; // information on the event type that caused the interrupt
+//Forward declaration
+STATIC const mp_obj_type_t mod_irq_event_Event_type;
+
+// class Event(object):
+typedef struct _mp_obj_Event_t {
+    mp_obj_base_t base;
+	uint32_t event; // information on the event type that caused the interrupt
     int16_t count;  // count captured in interrupt when event happened
-} pcnt_evt_obj_t;
+} mp_obj_Event_t;
 
 /* Decode what PCNT's unit originated an interrupt
  * and pass this information together with the event type
@@ -80,7 +87,6 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
     pcnt_evt_t event;
 
 	if (intr_status & (BIT(self->unit))) {
-		//event.unit = self->unit;
 		/* Save the PCNT event type that caused an interrupt
 		   to pass it to the main program */
 		event.event = PCNT.status_unit[self->unit].val;
@@ -122,31 +128,40 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
     self->base.type = &machine_dec_type;
     self->unit = unit;
 
-    //Set interrupt event queue to null for now
+    //Set interrupt event queue to uninitialized null for now
     self->event_queue = MP_OBJ_NULL;
 
-    // configure timer channel 0
+    //------ configure timer channel 0
     self->chan_0.channel = PCNT_CHANNEL_0;
+	// Set PCNT input signal and control GPIOs
     self->chan_0.pulse_gpio_num = pin_a;    // reverse from channel 1
     self->chan_0.ctrl_gpio_num = pin_b;
     self->chan_0.unit = unit;
-    self->chan_0.pos_mode = PCNT_COUNT_DEC;
-    self->chan_0.neg_mode = PCNT_COUNT_INC;
+	// What to do on the positive / negative edge of pulse input?
+	//todo: Configure edge mode via input argument
+    self->chan_0.pos_mode = PCNT_COUNT_INC;
+    self->chan_0.neg_mode = PCNT_COUNT_DIS;
+	// What to do when control input is low or high?
     self->chan_0.lctrl_mode = PCNT_MODE_KEEP;
     self->chan_0.hctrl_mode = PCNT_MODE_REVERSE;
-    self->chan_0.counter_h_lim =  INT16_MAX;    // don't care if interrupt is not used?
+	// Set the maximum and minimum limit values to watch
+    self->chan_0.counter_h_lim =  INT16_MAX;
     self->chan_0.counter_l_lim =  INT16_MIN;
 
-    // configure timer channel 1
+    //------ configure timer channel 1
     self->chan_1.channel = PCNT_CHANNEL_1;
+	// Set PCNT input signal and control GPIOs
     self->chan_1.pulse_gpio_num = pin_b;    // reverse from channel 0
     self->chan_1.ctrl_gpio_num = pin_a;
     self->chan_1.unit = unit;
-    self->chan_1.pos_mode = PCNT_COUNT_DEC;
-    self->chan_1.neg_mode = PCNT_COUNT_INC;
+	// What to do on the positive / negative edge of pulse input?
+    self->chan_1.pos_mode = PCNT_COUNT_INC;
+    self->chan_1.neg_mode = PCNT_COUNT_DIS;
+	// What to do when control input is low or high?
     self->chan_1.lctrl_mode = PCNT_MODE_REVERSE;
     self->chan_1.hctrl_mode = PCNT_MODE_KEEP;
-    self->chan_1.counter_h_lim =  INT16_MAX;    // don't care if interrupt is not used?
+	// Set the maximum and minimum limit values to watch
+    self->chan_1.counter_h_lim =  INT16_MAX;
     self->chan_1.counter_l_lim =  INT16_MIN;
 
     if (n_args == 2) {
@@ -192,7 +207,7 @@ STATIC mp_obj_t esp32_dec_count(mp_obj_t self_in)
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 
     int16_t count;
-    pcnt_get_counter_value(self->chan_0.unit, &count);
+    pcnt_get_counter_value(self->unit, &count);
     return MP_OBJ_NEW_SMALL_INT(count);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_count_obj, esp32_dec_count);
@@ -203,8 +218,8 @@ STATIC mp_obj_t esp32_dec_count_and_clear(mp_obj_t self_in)
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 
     int16_t count;
-    pcnt_get_counter_value(self->chan_0.unit, &count);
-    pcnt_counter_clear(self->chan_0.unit);
+    pcnt_get_counter_value(self->unit, &count);
+    pcnt_counter_clear(self->unit);
     return MP_OBJ_NEW_SMALL_INT(count);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_count_and_clear_obj, esp32_dec_count_and_clear);
@@ -213,7 +228,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_count_and_clear_obj, esp32_dec_count_
 STATIC mp_obj_t esp32_dec_clear(mp_obj_t self_in)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    pcnt_counter_clear(self->chan_0.unit);
+    pcnt_counter_clear(self->unit);
 
     return mp_const_none;
 }
@@ -223,7 +238,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_clear_obj, esp32_dec_clear);
 STATIC mp_obj_t esp32_dec_pause(mp_obj_t self_in)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    pcnt_counter_pause(self->chan_0.unit);
+    pcnt_counter_pause(self->unit);
 
     return mp_const_none;
 }
@@ -233,11 +248,39 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_pause_obj, esp32_dec_pause);
 STATIC mp_obj_t esp32_dec_resume(mp_obj_t self_in)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    pcnt_counter_resume(self->chan_0.unit);
+    pcnt_counter_resume(self->unit);
 
     return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_resume_obj, esp32_dec_resume);
+
+//-----------------------------------------------------------------
+STATIC mp_obj_t esp32_dec_set_thresh0(mp_obj_t self_in, mp_obj_t thresh)
+{
+    esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
+	
+	int16_t thresh_int = (int16_t) mp_obj_get_int(thresh);
+	
+	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, thresh_int);
+	pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(esp32_dec_set_thresh0_obj, esp32_dec_set_thresh0);
+
+//-----------------------------------------------------------------
+STATIC mp_obj_t esp32_dec_set_thresh1(mp_obj_t self_in, mp_obj_t thresh)
+{
+    esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
+	
+	int16_t thresh_int = (int16_t) mp_obj_get_int(thresh);
+	
+	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, thresh_int);
+	pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(esp32_dec_set_thresh1_obj, esp32_dec_set_thresh1);
 
 //-----------------------------------------------------------------
 STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
@@ -245,32 +288,59 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
 	esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 	portBASE_TYPE res;
 	pcnt_evt_t evt;
-	pcnt_evt_obj_t *event_obj =  pvPortMalloc(sizeof(pcnt_evt_obj_t));
 
+	mp_obj_Event_t *event_obj = m_new_obj(mp_obj_Event_t);
+    event_obj->base.type = &mod_irq_event_Event_type;
+	
     /* Wait for the event information passed from PCNT's interrupt handler.
      * Once received, decode the event type and print it on the serial monitor.
      */
     res = xQueueReceive(self->event_queue, &evt, 0);
     if (res == pdTRUE) {
-    	event_obj->event = evt.event;
-    	event_obj->count = evt.count;
-    	/*
+		/*
+		//todo: implement cnt_mode
+					union {
+				struct {
+					uint32_t cnt_mode:2;                    //0: positive value to zero; 1: negative value to zero; 2: counter value negative ; 3: counter value positive
+					uint32_t thres1_lat:1;                  // counter value equals to thresh1
+					uint32_t thres0_lat:1;                  // counter value equals to thresh0
+					uint32_t l_lim_lat:1;                   // counter value reaches h_lim
+					uint32_t h_lim_lat:1;                   // counter value reaches l_lim
+					uint32_t zero_lat:1;                    // counter value equals zero
+					uint32_t reserved7:25;
+				};
+				uint32_t val;
+			} status_unit[8];
+		*/
+		
+		uint32_t event_return = 0;
+		
         if (evt.event & PCNT_STATUS_THRES1_M) {
-            printf("THRES1 EVT\n");
+            //printf("THRES1 EVT %d\n", evt.event);
+			event_return |= EVT_THRES_1;
         }
         if (evt.event & PCNT_STATUS_THRES0_M) {
-            printf("THRES0 EVT\n");
+            //printf("THRES0 EVT %d\n", evt.event);
+			event_return |= EVT_THRES_0;
         }
         if (evt.event & PCNT_STATUS_L_LIM_M) {
-            printf("L_LIM EVT\n");
+            //printf("L_LIM EVT %d\n", evt.event);
+			event_return |= EVT_L_LIM;
         }
         if (evt.event & PCNT_STATUS_H_LIM_M) {
-            printf("H_LIM EVT\n");
+            //printf("H_LIM EVT %d\n", evt.event);
+			event_return |= EVT_H_LIM;
         }
         if (evt.event & PCNT_STATUS_ZERO_M) {
-            printf("ZERO EVT\n");
+            //printf("ZERO EVT %d\n", evt.event);
+			event_return |= EVT_ZERO;
         }
-        */
+		
+		//event_obj->event = evt.event;
+		event_obj->event = event_return;
+		event_obj->count = evt.count;
+    	
+        
     } else {
     	//No value in queue
     	return mp_const_none;
@@ -281,27 +351,28 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_get_irq_event_obj, esp32_dec_get_irq_event);
 
 //-----------------------------------------------------------------
-// dec.irq(handler=None, trigger=IRQ_FALLING|IRQ_RISING)
+// dec.irq(handler=None, trigger=EVT_L_LIM | EVT_H_LIM | EVT_THRES_0 | EVT_THRES_1 | EVT_ZERO)
 STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_handler, ARG_trigger, ARG_wake };
     static const mp_arg_t allowed_args[] = {
         { MP_QSTR_handler, MP_ARG_OBJ, {.u_obj = mp_const_none} },
-        { MP_QSTR_trigger, MP_ARG_INT, {.u_int = PCNT_EVT_L_LIM | PCNT_EVT_H_LIM | PCNT_EVT_THRES_0 | PCNT_EVT_THRES_1 | PCNT_EVT_ZERO} },
-//      { MP_QSTR_wake, MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_trigger, MP_ARG_INT, {.u_int = EVT_L_LIM | EVT_H_LIM | EVT_THRES_0 | EVT_THRES_1 | EVT_ZERO} },
+
     };
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
+	/* install ISR if not already */
     static bool did_install_isr = false;
     if (!did_install_isr) {
     	pcnt_isr_service_install(0);
         did_install_isr = true;
     }
 
+	/* Initialize PCNT event queue */
     if (self->event_queue == MP_OBJ_NULL)
     {
-        /* Initialize PCNT event queue */
         self->event_queue = xQueueCreate(10, sizeof(pcnt_evt_t));
     }
     else
@@ -329,23 +400,68 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
 		
 		if (self->handler == mp_const_none) {
 			self->handler = MP_OBJ_NULL;
-			trigger = 0;
+			mp_raise_ValueError("Invalid handler argument");
 		}
 		
-		/* Register ISR handler and enable interrupts for PCNT unit */
-		//pcnt_isr_register(machine_cnt_isr_handler, NULL, 0, &user_isr_handle);
-		//todo: Need to assign different handler for each different unit. 
+		/* Register ISR handler and enable interrupts for PCNT unit */ 
 		pcnt_isr_handler_add(self->unit, machine_cnt_isr_handler, (void*)self);
 		pcnt_intr_enable(self->unit);
     }
 
-    // return the irq object
-    // return MP_OBJ_FROM_PTR(&machine_dec_irq_object[self->id]);
     return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(machine_dec_irq_obj, 1, machine_dec_irq);
 
-//==============================================================
+//=====Event Object=========================================================
+
+// def Event.__init__(self, event, count)
+STATIC mp_obj_t mod_irq_event_Event_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
+    mp_arg_check_num(n_args, n_kw, 2, 2, false);
+    mp_obj_Event_t *self = m_new_obj(mp_obj_Event_t);
+    self->base.type = &mod_irq_event_Event_type;
+	self->event = mp_obj_get_int(args[0]);
+	self->count = mp_obj_get_int(args[1]);
+    return MP_OBJ_FROM_PTR(self);
+}
+
+// def Event.get_event(self) -> int
+STATIC mp_obj_t mod_irq_event_Event_get_event(mp_obj_t self_in) {
+	mp_obj_Event_t *self = MP_OBJ_TO_PTR(self_in);
+    return mp_obj_new_int_from_uint(self->event);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_irq_event_Event_get_event_obj, mod_irq_event_Event_get_event);
+
+// def Event.get_event_count(self) -> int
+STATIC mp_obj_t mod_irq_event_Event_get_event_count(mp_obj_t self_in) {
+	mp_obj_Event_t *self = MP_OBJ_TO_PTR(self_in);
+    return mp_obj_new_int(self->count);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_irq_event_Event_get_event_count_obj, mod_irq_event_Event_get_event_count);
+
+// Event stuff
+
+STATIC const mp_rom_map_elem_t mod_irq_event_Event_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_get_event), MP_ROM_PTR(&mod_irq_event_Event_get_event_obj) },
+    { MP_ROM_QSTR(MP_QSTR_get_event_count), MP_ROM_PTR(&mod_irq_event_Event_get_event_count_obj) },
+};
+STATIC MP_DEFINE_CONST_DICT(mod_irq_event_Event_locals_dict, mod_irq_event_Event_locals_dict_table);
+
+STATIC const mp_obj_type_t mod_irq_event_Event_type = {
+    { &mp_type_type },
+    .name = MP_QSTR_Event,
+    .make_new = mod_irq_event_Event_make_new,
+    .locals_dict = (void*)&mod_irq_event_Event_locals_dict,
+};
+
+//=====MODULE=========================================================
+/*
+STATIC const mp_rom_map_elem_t esp32_dec_globals_table[] = {
+    { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_DEC) },
+    { MP_ROM_QSTR(MP_QSTR_Event), MP_ROM_PTR(&mod_irq_event_Event_type) },
+};
+STATIC MP_DEFINE_CONST_DICT(esp32_dec_globals, esp32_dec_globals_table);
+*/ 
+
 STATIC const mp_rom_map_elem_t esp32_dec_locals_dict_table[] = {
     // instance methods
 	{ MP_ROM_QSTR(MP_QSTR_count), MP_ROM_PTR(&esp32_dec_count_obj) },
@@ -353,15 +469,17 @@ STATIC const mp_rom_map_elem_t esp32_dec_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_clear), MP_ROM_PTR(&esp32_dec_clear_obj) },
     { MP_ROM_QSTR(MP_QSTR_pause), MP_ROM_PTR(&esp32_dec_pause_obj) },
     { MP_ROM_QSTR(MP_QSTR_resume), MP_ROM_PTR(&esp32_dec_resume_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_set_thresh0), MP_ROM_PTR(&esp32_dec_set_thresh0_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_set_thresh1), MP_ROM_PTR(&esp32_dec_set_thresh1_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_irq), MP_ROM_PTR(&machine_dec_irq_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_get_irq_event), MP_ROM_PTR(&esp32_dec_get_irq_event_obj) },
 	
 	//class constants
-	{ MP_ROM_QSTR(MP_QSTR_EVT_L_LIM), MP_ROM_INT(PCNT_EVT_L_LIM) },
-	{ MP_ROM_QSTR(MP_QSTR_EVT_H_LIM), MP_ROM_INT(PCNT_EVT_H_LIM) },
-	{ MP_ROM_QSTR(MP_QSTR_EVT_THRES_0), MP_ROM_INT(PCNT_EVT_THRES_0) },
-	{ MP_ROM_QSTR(MP_QSTR_EVT_THRES_1), MP_ROM_INT(PCNT_EVT_THRES_1) },
-	{ MP_ROM_QSTR(MP_QSTR_EVT_ZERO), MP_ROM_INT(PCNT_EVT_ZERO) },
+	{ MP_ROM_QSTR(MP_QSTR_EVT_L_LIM), MP_ROM_INT(EVT_L_LIM) },
+	{ MP_ROM_QSTR(MP_QSTR_EVT_H_LIM), MP_ROM_INT(EVT_H_LIM) },
+	{ MP_ROM_QSTR(MP_QSTR_EVT_THRES_0), MP_ROM_INT(EVT_THRES_0) },
+	{ MP_ROM_QSTR(MP_QSTR_EVT_THRES_1), MP_ROM_INT(EVT_THRES_1) },
+	{ MP_ROM_QSTR(MP_QSTR_EVT_ZERO), MP_ROM_INT(EVT_ZERO) },
 	
 };
 STATIC MP_DEFINE_CONST_DICT(esp32_dec_locals_dict, esp32_dec_locals_dict_table);
@@ -372,5 +490,6 @@ const mp_obj_type_t machine_dec_type = {
     .name = MP_QSTR_DEC,
     .print = esp32_dec_print,
     .make_new = esp32_dec_make_new,
-    .locals_dict = (mp_obj_dict_t*)&esp32_dec_locals_dict,
+    .locals_dict = (mp_obj_t)&esp32_dec_locals_dict,
+	//.globals = (mp_obj_dict_t*)&esp32_dec_globals,
 };
