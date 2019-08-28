@@ -44,6 +44,7 @@
 typedef struct _esp32_dec_obj_t {
     mp_obj_base_t base;
     pcnt_unit_t unit;
+    int32_t rollover_count; //running count from last rollover
     pcnt_config_t chan_0;
     pcnt_config_t chan_1;
     mp_obj_t handler;
@@ -88,6 +89,14 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 		PCNT.int_clr.val = BIT(self->unit);
 
 		xQueueSendFromISR(self->event_queue, &event, pdFALSE);
+
+		// Handle counter roll-over for running count
+		if (event.event & PCNT_STATUS_L_LIM_M) {
+			self->rollover_count += INT16_MAX;
+		}
+		if (event.event & PCNT_STATUS_H_LIM_M) {
+			self->rollover_count += INT16_MIN;
+		}
 	}
 
     mp_sched_schedule(self->handler, MP_OBJ_FROM_PTR(self));
@@ -297,36 +306,14 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
     }
     else
     {
-    	//todo: reset and clear event queue
+    	//Reset and clear event queue
+    	xQueueReset(self->event_queue);
     }
 
     if (n_args > 1 || kw_args->used != 0) {
         // configure irq
         self->handler = args[ARG_handler].u_obj;
         uint32_t trigger = args[ARG_trigger].u_int;
-//		mp_obj_t wake_obj = args[ARG_wake].u_obj;
-
-		/*
-        if ( wake_obj != mp_const_none) {
-            mp_int_t wake;
-            if (mp_obj_get_int_maybe(wake_obj, &wake)) {
-                if (wake < 2 || wake > 7) {
-                    mp_raise_ValueError("bad wake value");
-                }
-            } else {
-                mp_raise_ValueError("bad wake value");
-            }
-
-            if (machine_rtc_config.wake_on_touch) { // not compatible
-                mp_raise_ValueError("no resources");
-            }
-
-            if (!RTC_IS_VALID_EXT_PIN(self->id)) {
-                mp_raise_ValueError("invalid pin for wake");
-            }
-
-        } 
-		*/
 
 		/* Set threshold 0 and 1 values and enable events to watch */
 		/*
@@ -338,19 +325,12 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
 		/* Enable events on zero, maximum and minimum limit values */
 		pcnt_event_enable(self->unit, PCNT_EVT_H_LIM);
 		pcnt_event_enable(self->unit, PCNT_EVT_L_LIM);
-		pcnt_event_enable(self->unit, PCNT_EVT_ZERO);
+		//pcnt_event_enable(self->unit, PCNT_EVT_ZERO);
 		
 		if (self->handler == mp_const_none) {
 			self->handler = MP_OBJ_NULL;
 			trigger = 0;
 		}
-		
-		/* // This is how GPIO module does it.
-		gpio_isr_handler_remove(self->id);
-		MP_STATE_PORT(machine_pin_irq_handler)[self->id] = handler;
-		gpio_set_intr_type(self->id, trigger);
-		gpio_isr_handler_add(self->id, machine_pin_isr_handler, (void*)self);
-		*/
 		
 		/* Register ISR handler and enable interrupts for PCNT unit */
 		//pcnt_isr_register(machine_cnt_isr_handler, NULL, 0, &user_isr_handle);
