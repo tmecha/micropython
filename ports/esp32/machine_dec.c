@@ -123,12 +123,11 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 			} else {
 				pcnt_event_disable(self->unit, PCNT_EVT_THRES_1);
 			}
-
+		}
 		// add rollover count to counter
 		event.count = self->rollover_count + count;
 
 		xQueueSendFromISR(self->event_queue, &event, pdFALSE);
-		}
 	}
 
     mp_sched_schedule(self->handler, MP_OBJ_FROM_PTR(self));
