@@ -301,7 +301,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_resume_obj, esp32_dec_resume);
 STATIC mp_obj_t esp32_dec_set_thresh0(mp_obj_t self_in, mp_obj_t thresh)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    uint16_t count;
+    int16_t count;
 	
     self->thresh0_running = (int32_t) mp_obj_get_int(thresh);
 
@@ -338,6 +338,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(esp32_dec_set_thresh0_obj, esp32_dec_set_thresh
 STATIC mp_obj_t esp32_dec_set_thresh1(mp_obj_t self_in, mp_obj_t thresh)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    int16_t count;
 	
     self->thresh1_running = (int32_t) mp_obj_get_int(thresh);
 
