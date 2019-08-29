@@ -343,9 +343,12 @@ STATIC mp_obj_t esp32_dec_set_thresh1(mp_obj_t self_in, mp_obj_t thresh)
     self->thresh1_running = (int32_t) mp_obj_get_int(thresh);
 
     if (self->thresh1_running <= INT16_MAX && self->thresh1_running >= INT16_MIN){
-    	// Don't need to roll over to hit threshold
-		pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, (int16_t) self->thresh1_running);
-		pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
+    	// Threshold is within current counter window
+    	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, (int16_t) self->thresh1_running);
+    	pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
+        pcnt_get_counter_value(self->unit, &count);
+        self->rollover_count += count;
+    	pcnt_counter_clear(self->unit); //Undocumented esp32 issue: Counter needs to be cleared for updated thresh to work
 
     	//if thresh0 enabled, offset it relative to count due to clearing
     	if (PCNT.conf_unit[self->unit].conf0.thr_thres0_en) {
