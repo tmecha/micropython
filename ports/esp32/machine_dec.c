@@ -84,7 +84,7 @@ typedef struct _mp_obj_Event_t {
  */
 static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 {
-    uint16_t count;
+    int16_t count;
     esp32_dec_obj_t *self = arg;
     pcnt_evt_t event;
 
