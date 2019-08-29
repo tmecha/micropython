@@ -107,9 +107,7 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 		//set threshold if within 16-bit counter range
 		if ((event.event & PCNT_STATUS_L_LIM_M) || (event.event & PCNT_STATUS_H_LIM_M)) {
 			int32_t thresh0_delta = self->thresh0_running - self->rollover_count;
-			printf("%d",thresh0_delta);
 			if (thresh0_delta < INT16_MAX && thresh0_delta > INT16_MIN) {
-				printf("T1");
 				pcnt_event_disable(self->unit, PCNT_EVT_THRES_0); //also try disabling event before setting
 				pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, (int16_t) thresh0_delta);
 				pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
@@ -120,7 +118,6 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 
 			int32_t thresh1_delta = self->thresh1_running - self->rollover_count;
 			if (thresh1_delta < INT16_MAX && thresh1_delta > INT16_MIN) {
-				printf("T2");
 				pcnt_event_disable(self->unit, PCNT_EVT_THRES_1); //also try disabling event before setting
 				pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, (int16_t) thresh1_delta);
 				pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
