@@ -128,7 +128,7 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 		event.count = self->rollover_count + count;
 
 		xQueueSendFromISR(self->event_queue, &event, pdFALSE);
-
+		}
 	}
 
     mp_sched_schedule(self->handler, MP_OBJ_FROM_PTR(self));
