@@ -51,7 +51,9 @@
 typedef struct _esp32_dec_obj_t {
     mp_obj_base_t base;
     pcnt_unit_t unit;
-    int32_t rollover_count; //running count from last rollover
+    int32_t rollover_count;  //running count from last rollover
+    int32_t thresh0_running; //running threshold #0
+    int32_t thresh1_running; //running threshold #1
     pcnt_config_t chan_0;
     pcnt_config_t chan_1;
     mp_obj_t handler;
@@ -63,7 +65,7 @@ typedef struct _esp32_dec_obj_t {
  */
 typedef struct {
     uint32_t event; // information on the event type that caused the interrupt
-    int16_t count;  // count captured in interrupt when event happened
+    int32_t count;  // count captured in interrupt when event happened
 } pcnt_evt_t;
 
 //Forward declaration
@@ -73,7 +75,7 @@ STATIC const mp_obj_type_t mod_irq_event_Event_type;
 typedef struct _mp_obj_Event_t {
     mp_obj_base_t base;
 	uint32_t event; // information on the event type that caused the interrupt
-    int16_t count;  // count captured in interrupt when event happened
+    int32_t count;  // count captured in interrupt when event happened
 } mp_obj_Event_t;
 
 /* Decode what PCNT's unit originated an interrupt
@@ -82,27 +84,51 @@ typedef struct _mp_obj_Event_t {
  */
 static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 {
-    uint32_t intr_status = PCNT.int_st.val;
+    uint16_t count;
     esp32_dec_obj_t *self = arg;
     pcnt_evt_t event;
 
-	if (intr_status & (BIT(self->unit))) {
+	if (PCNT.int_st.val & (BIT(self->unit))) {
 		/* Save the PCNT event type that caused an interrupt
 		   to pass it to the main program */
+		pcnt_get_counter_value(self->unit, &count);
 		event.event = PCNT.status_unit[self->unit].val;
-		pcnt_get_counter_value(self->unit, &(event.count));
-
 		PCNT.int_clr.val = BIT(self->unit);
-
-		xQueueSendFromISR(self->event_queue, &event, pdFALSE);
 
 		// Handle counter roll-over for running count
 		if (event.event & PCNT_STATUS_L_LIM_M) {
 			self->rollover_count += INT16_MAX;
+
 		}
 		if (event.event & PCNT_STATUS_H_LIM_M) {
 			self->rollover_count += INT16_MIN;
 		}
+
+		//set threshold if within 16-bit counter range
+		if ((event.event & PCNT_STATUS_L_LIM_M) || (event.event & PCNT_STATUS_H_LIM_M)) {
+			int32_t thresh0_delta = self->thresh0_running - self->rollover_count;
+			if (thresh0_delta < INT16_MAX && thresh0_delta > INT16_MIN) {
+				pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, (int16_t) thresh0_delta);
+				pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
+				pcnt_counter_clear(self->unit); //Undocumented esp32 issue: Counter needs to be cleared for updated thresh to work
+			} else {
+				pcnt_event_disable(self->unit, PCNT_EVT_THRES_0);
+			}
+
+			int32_t thresh1_delta = self->thresh1_running - self->rollover_count;
+			if (thresh1_delta < INT16_MAX && thresh1_delta > INT16_MIN) {
+				pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, (int16_t) thresh1_delta);
+				pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
+				pcnt_counter_clear(self->unit); //Undocumented esp32 issue: Counter needs to be cleared for updated thresh to work
+			} else {
+				pcnt_event_disable(self->unit, PCNT_EVT_THRES_1);
+			}
+
+		// add rollover count to counter
+		event.count = self->rollover_count + count;
+
+		xQueueSendFromISR(self->event_queue, &event, pdFALSE);
+
 	}
 
     mp_sched_schedule(self->handler, MP_OBJ_FROM_PTR(self));
@@ -127,6 +153,7 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
     esp32_dec_obj_t *self = m_new_obj(esp32_dec_obj_t);
     self->base.type = &machine_dec_type;
     self->unit = unit;
+    self->rollover_count = 0;
 
     //Set interrupt event queue to uninitialized null for now
     self->event_queue = MP_OBJ_NULL;
@@ -151,11 +178,11 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
     //------ configure timer channel 1
     self->chan_1.channel = PCNT_CHANNEL_1;
 	// Set PCNT input signal and control GPIOs
-    self->chan_1.pulse_gpio_num = pin_b;    // reverse from channel 0
-    self->chan_1.ctrl_gpio_num = pin_a;
+    self->chan_1.pulse_gpio_num = PCNT_PIN_NOT_USED;    // reverse from channel 0
+    self->chan_1.ctrl_gpio_num = PCNT_PIN_NOT_USED;
     self->chan_1.unit = unit;
 	// What to do on the positive / negative edge of pulse input?
-    self->chan_1.pos_mode = PCNT_COUNT_INC;
+    self->chan_1.pos_mode = PCNT_COUNT_DIS;
     self->chan_1.neg_mode = PCNT_COUNT_DIS;
 	// What to do when control input is low or high?
     self->chan_1.lctrl_mode = PCNT_MODE_REVERSE;
@@ -167,13 +194,13 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
     if (n_args == 2) {
         // not sure if all this is required, but I've played long enough
         self->chan_0.pos_mode = PCNT_COUNT_INC;
-        self->chan_0.hctrl_mode = PCNT_MODE_KEEP;
+        self->chan_0.hctrl_mode = PCNT_COUNT_DIS;
 
         self->chan_1.channel = PCNT_CHANNEL_1;
-        self->chan_1.ctrl_gpio_num = pin_b;
+        self->chan_1.ctrl_gpio_num = PCNT_PIN_NOT_USED;
         self->chan_1.pos_mode = PCNT_COUNT_DIS;
         self->chan_1.neg_mode = PCNT_COUNT_DIS;
-        self->chan_1.hctrl_mode = PCNT_MODE_KEEP;
+        self->chan_1.hctrl_mode = PCNT_COUNT_DIS;
     }
 
     pcnt_unit_config(&(self->chan_0));
@@ -208,9 +235,21 @@ STATIC mp_obj_t esp32_dec_count(mp_obj_t self_in)
 
     int16_t count;
     pcnt_get_counter_value(self->unit, &count);
-    return MP_OBJ_NEW_SMALL_INT(count);
+    return MP_OBJ_NEW_SMALL_INT(self->rollover_count + count);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_count_obj, esp32_dec_count);
+
+//-----------------------------------------------------------------
+// Get the raw count register value
+STATIC mp_obj_t esp32_dec_raw_reg_count(mp_obj_t self_in)
+{
+    esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
+
+    int16_t count;
+    pcnt_get_counter_value(self->unit, &count);
+    return MP_OBJ_NEW_SMALL_INT(count);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_raw_reg_count_obj, esp32_dec_raw_reg_count);
 
 //-----------------------------------------------------------------
 STATIC mp_obj_t esp32_dec_count_and_clear(mp_obj_t self_in)
@@ -218,9 +257,12 @@ STATIC mp_obj_t esp32_dec_count_and_clear(mp_obj_t self_in)
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 
     int16_t count;
+    int32_t running_count;
     pcnt_get_counter_value(self->unit, &count);
+    running_count = self->rollover_count + count;
     pcnt_counter_clear(self->unit);
-    return MP_OBJ_NEW_SMALL_INT(count);
+    self->rollover_count = 0;
+    return MP_OBJ_NEW_SMALL_INT(running_count);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_count_and_clear_obj, esp32_dec_count_and_clear);
 
@@ -229,6 +271,7 @@ STATIC mp_obj_t esp32_dec_clear(mp_obj_t self_in)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
     pcnt_counter_clear(self->unit);
+    self->rollover_count = 0;
 
     return mp_const_none;
 }
@@ -258,11 +301,34 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_dec_resume_obj, esp32_dec_resume);
 STATIC mp_obj_t esp32_dec_set_thresh0(mp_obj_t self_in, mp_obj_t thresh)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    uint16_t count;
 	
-	int16_t thresh_int = (int16_t) mp_obj_get_int(thresh);
-	
-	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, thresh_int);
-	pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
+    self->thresh0_running = (int32_t) mp_obj_get_int(thresh);
+
+    if (self->thresh0_running <= INT16_MAX && self->thresh0_running >= INT16_MIN){
+    	// Threshold is within current counter window
+    	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, (int16_t) self->thresh0_running);
+    	pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
+        pcnt_get_counter_value(self->unit, &count);
+        self->rollover_count += count;
+    	pcnt_counter_clear(self->unit); //Undocumented esp32 issue: Counter needs to be cleared for updated thresh to work
+
+    	//if thresh1 enabled, offset it relative to count due to clearing
+    	if (PCNT.conf_unit[self->unit].conf0.thr_thres1_en) {
+    		int16_t thresh1_value;
+    		int32_t thresh1_new;
+    		pcnt_get_event_value(self->unit, PCNT_EVT_THRES_1, &thresh1_value);
+    		thresh1_new = thresh1_value - count;
+    		if (thresh1_new < INT16_MIN || thresh1_new > INT16_MAX) {
+    			// corner case which offset threshold is outside current counter window
+    			// will get picked back up on next H_LIM or L_LIM interrupt
+    			pcnt_event_disable(self->unit, PCNT_EVT_THRES_1);
+    		} else {
+    			pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, (int16_t) thresh1_new); //offset thresh1 by current count
+    			pcnt_counter_clear(self->unit);
+    		}
+    	}
+    }
 
     return mp_const_none;
 }
@@ -273,10 +339,29 @@ STATIC mp_obj_t esp32_dec_set_thresh1(mp_obj_t self_in, mp_obj_t thresh)
 {
     esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
 	
-	int16_t thresh_int = (int16_t) mp_obj_get_int(thresh);
-	
-	pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, thresh_int);
-	pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
+    self->thresh1_running = (int32_t) mp_obj_get_int(thresh);
+
+    if (self->thresh1_running <= INT16_MAX && self->thresh1_running >= INT16_MIN){
+    	// Don't need to roll over to hit threshold
+		pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, (int16_t) self->thresh1_running);
+		pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
+
+    	//if thresh0 enabled, offset it relative to count due to clearing
+    	if (PCNT.conf_unit[self->unit].conf0.thr_thres0_en) {
+    		int16_t thresh0_value;
+    		int32_t thresh0_new;
+    		pcnt_get_event_value(self->unit, PCNT_EVT_THRES_0, &thresh0_value);
+    		thresh0_new = thresh0_value - count;
+    		if (thresh0_new < INT16_MIN || thresh0_new > INT16_MAX) {
+    			// corner case which offset threshold is outside current counter window
+    			// will get picked back up on next H_LIM or L_LIM interrupt
+    			pcnt_event_disable(self->unit, PCNT_EVT_THRES_0);
+    		} else {
+    			pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, (int16_t) thresh0_new); //offset thresh0 by current count
+    			pcnt_counter_clear(self->unit);
+    		}
+    	}
+    }
 
     return mp_const_none;
 }
@@ -297,21 +382,6 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
      */
     res = xQueueReceive(self->event_queue, &evt, 0);
     if (res == pdTRUE) {
-		/*
-		//todo: implement cnt_mode
-					union {
-				struct {
-					uint32_t cnt_mode:2;                    //0: positive value to zero; 1: negative value to zero; 2: counter value negative ; 3: counter value positive
-					uint32_t thres1_lat:1;                  // counter value equals to thresh1
-					uint32_t thres0_lat:1;                  // counter value equals to thresh0
-					uint32_t l_lim_lat:1;                   // counter value reaches h_lim
-					uint32_t h_lim_lat:1;                   // counter value reaches l_lim
-					uint32_t zero_lat:1;                    // counter value equals zero
-					uint32_t reserved7:25;
-				};
-				uint32_t val;
-			} status_unit[8];
-		*/
 		
 		uint32_t event_return = 0;
 		
@@ -336,7 +406,6 @@ STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
 			event_return |= EVT_ZERO;
         }
 		
-		//event_obj->event = evt.event;
 		event_obj->event = event_return;
 		event_obj->count = evt.count;
     	
@@ -386,7 +455,7 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
         self->handler = args[ARG_handler].u_obj;
         uint32_t trigger = args[ARG_trigger].u_int;
 
-		/* Set threshold 0 and 1 values and enable events to watch */
+		/* Use Threshold functions for setting threshold */
 		/*
 		pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, PCNT_THRESH1_VAL);
 		pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
@@ -396,8 +465,11 @@ STATIC mp_obj_t machine_dec_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
 		/* Enable events on zero, maximum and minimum limit values */
 		pcnt_event_enable(self->unit, PCNT_EVT_H_LIM);
 		pcnt_event_enable(self->unit, PCNT_EVT_L_LIM);
-		//pcnt_event_enable(self->unit, PCNT_EVT_ZERO);
 		
+		if (trigger & EVT_ZERO){
+			pcnt_event_enable(self->unit, PCNT_EVT_ZERO);
+		}
+
 		if (self->handler == mp_const_none) {
 			self->handler = MP_OBJ_NULL;
 			mp_raise_ValueError("Invalid handler argument");
@@ -465,6 +537,7 @@ STATIC MP_DEFINE_CONST_DICT(esp32_dec_globals, esp32_dec_globals_table);
 STATIC const mp_rom_map_elem_t esp32_dec_locals_dict_table[] = {
     // instance methods
 	{ MP_ROM_QSTR(MP_QSTR_count), MP_ROM_PTR(&esp32_dec_count_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_raw_reg_count), MP_ROM_PTR(&esp32_dec_raw_reg_count_obj) }
     { MP_ROM_QSTR(MP_QSTR_count_and_clear), MP_ROM_PTR(&esp32_dec_count_and_clear_obj) },
     { MP_ROM_QSTR(MP_QSTR_clear), MP_ROM_PTR(&esp32_dec_clear_obj) },
     { MP_ROM_QSTR(MP_QSTR_pause), MP_ROM_PTR(&esp32_dec_pause_obj) },
