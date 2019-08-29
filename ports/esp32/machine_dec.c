@@ -538,7 +538,7 @@ STATIC MP_DEFINE_CONST_DICT(esp32_dec_globals, esp32_dec_globals_table);
 STATIC const mp_rom_map_elem_t esp32_dec_locals_dict_table[] = {
     // instance methods
 	{ MP_ROM_QSTR(MP_QSTR_count), MP_ROM_PTR(&esp32_dec_count_obj) },
-	{ MP_ROM_QSTR(MP_QSTR_raw_reg_count), MP_ROM_PTR(&esp32_dec_raw_reg_count_obj) }
+	{ MP_ROM_QSTR(MP_QSTR_raw_reg_count), MP_ROM_PTR(&esp32_dec_raw_reg_count_obj) },
     { MP_ROM_QSTR(MP_QSTR_count_and_clear), MP_ROM_PTR(&esp32_dec_count_and_clear_obj) },
     { MP_ROM_QSTR(MP_QSTR_clear), MP_ROM_PTR(&esp32_dec_clear_obj) },
     { MP_ROM_QSTR(MP_QSTR_pause), MP_ROM_PTR(&esp32_dec_pause_obj) },
