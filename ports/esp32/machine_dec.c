@@ -97,11 +97,11 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 
 		// Handle counter roll-over for running count
 		if (event.event & PCNT_STATUS_L_LIM_M) {
-			self->rollover_count += INT16_MAX;
+			self->rollover_count += INT16_MIN;
 
 		}
 		if (event.event & PCNT_STATUS_H_LIM_M) {
-			self->rollover_count += INT16_MIN;
+			self->rollover_count += INT16_MAX;
 		}
 
 		//set threshold if within 16-bit counter range
@@ -179,11 +179,11 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
     //------ configure timer channel 1
     self->chan_1.channel = PCNT_CHANNEL_1;
 	// Set PCNT input signal and control GPIOs
-    self->chan_1.pulse_gpio_num = pin_b;    // reverse from channel 0
-    self->chan_1.ctrl_gpio_num = pin_a;
+    self->chan_1.pulse_gpio_num = PCNT_PIN_NOT_USED;    // reverse from channel 0
+    self->chan_1.ctrl_gpio_num = PCNT_PIN_NOT_USED;
     self->chan_1.unit = unit;
 	// What to do on the positive / negative edge of pulse input?
-    self->chan_1.pos_mode = PCNT_COUNT_INC;
+    self->chan_1.pos_mode = PCNT_COUNT_DIS;
     self->chan_1.neg_mode = PCNT_COUNT_DIS;
 	// What to do when control input is low or high?
     self->chan_1.lctrl_mode = PCNT_MODE_REVERSE;
@@ -195,13 +195,13 @@ STATIC mp_obj_t esp32_dec_make_new(const mp_obj_type_t *type, size_t n_args, siz
     if (n_args == 2) {
         // not sure if all this is required, but I've played long enough
         self->chan_0.pos_mode = PCNT_COUNT_INC;
-        self->chan_0.hctrl_mode = PCNT_MODE_KEEP;
+        self->chan_0.hctrl_mode = PCNT_COUNT_DIS;
 
         self->chan_1.channel = PCNT_CHANNEL_1;
-        self->chan_1.ctrl_gpio_num = pin_b;
+        self->chan_1.ctrl_gpio_num = PCNT_PIN_NOT_USED;
         self->chan_1.pos_mode = PCNT_COUNT_DIS;
         self->chan_1.neg_mode = PCNT_COUNT_DIS;
-        self->chan_1.hctrl_mode = PCNT_MODE_KEEP;
+        self->chan_1.hctrl_mode = PCNT_COUNT_DIS;
     }
 
     pcnt_unit_config(&(self->chan_0));
