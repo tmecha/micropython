@@ -104,6 +104,9 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 			self->rollover_count += INT16_MAX;
 		}
 
+		// add total count to event object
+		event.count = self->rollover_count + count;
+
 		//set threshold if within 16-bit counter range
 		if ((event.event & PCNT_STATUS_L_LIM_M) || (event.event & PCNT_STATUS_H_LIM_M)) {
 			int32_t thresh0_delta = self->thresh0_running - self->rollover_count;
@@ -126,8 +129,6 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 				pcnt_event_disable(self->unit, PCNT_EVT_THRES_1);
 			}
 		}
-		// add rollover count to counter
-		event.count = self->rollover_count + count;
 
 		xQueueSendFromISR(self->event_queue, &event, pdFALSE);
 	}
