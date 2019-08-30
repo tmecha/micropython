@@ -112,6 +112,7 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 			int32_t thresh0_delta = self->thresh0_running - self->rollover_count;
 			if (thresh0_delta < INT16_MAX && thresh0_delta > INT16_MIN) {
 				pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, (int16_t) thresh0_delta);
+				pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
 				pcnt_counter_clear(self->unit); //Undocumented esp32 issue: Counter needs to be cleared for updated thresh to work
 			} else {
 				pcnt_event_disable(self->unit, PCNT_EVT_THRES_0);
@@ -120,6 +121,7 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 			int32_t thresh1_delta = self->thresh1_running - self->rollover_count;
 			if (thresh1_delta < INT16_MAX && thresh1_delta > INT16_MIN) {
 				pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, (int16_t) thresh1_delta);
+				pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
 				pcnt_counter_clear(self->unit); //Undocumented esp32 issue: Counter needs to be cleared for updated thresh to work
 			} else {
 				pcnt_event_disable(self->unit, PCNT_EVT_THRES_1);
