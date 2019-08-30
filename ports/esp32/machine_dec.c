@@ -111,9 +111,7 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 		if ((event.event & PCNT_STATUS_L_LIM_M) || (event.event & PCNT_STATUS_H_LIM_M)) {
 			int32_t thresh0_delta = self->thresh0_running - self->rollover_count;
 			if (thresh0_delta < INT16_MAX && thresh0_delta > INT16_MIN) {
-				pcnt_event_disable(self->unit, PCNT_EVT_THRES_0); //also try disabling event before setting
 				pcnt_set_event_value(self->unit, PCNT_EVT_THRES_0, (int16_t) thresh0_delta);
-				pcnt_event_enable(self->unit, PCNT_EVT_THRES_0);
 				pcnt_counter_clear(self->unit); //Undocumented esp32 issue: Counter needs to be cleared for updated thresh to work
 			} else {
 				pcnt_event_disable(self->unit, PCNT_EVT_THRES_0);
@@ -121,9 +119,7 @@ static void IRAM_ATTR machine_cnt_isr_handler(void *arg)
 
 			int32_t thresh1_delta = self->thresh1_running - self->rollover_count;
 			if (thresh1_delta < INT16_MAX && thresh1_delta > INT16_MIN) {
-				pcnt_event_disable(self->unit, PCNT_EVT_THRES_1); //also try disabling event before setting
 				pcnt_set_event_value(self->unit, PCNT_EVT_THRES_1, (int16_t) thresh1_delta);
-				pcnt_event_enable(self->unit, PCNT_EVT_THRES_1);
 				pcnt_counter_clear(self->unit); //Undocumented esp32 issue: Counter needs to be cleared for updated thresh to work
 			} else {
 				pcnt_event_disable(self->unit, PCNT_EVT_THRES_1);
@@ -330,6 +326,9 @@ STATIC mp_obj_t esp32_dec_set_thresh0(mp_obj_t self_in, mp_obj_t thresh)
     			pcnt_counter_clear(self->unit);
     		}
     	}
+    } else {
+    	//Threshold not within current window. disable event
+    	pcnt_event_disable(self->unit, PCNT_EVT_THRES_0);
     }
 
     return mp_const_none;
@@ -367,11 +366,34 @@ STATIC mp_obj_t esp32_dec_set_thresh1(mp_obj_t self_in, mp_obj_t thresh)
     			pcnt_counter_clear(self->unit);
     		}
     	}
+    } else {
+    	//Threshold not within current window. disable event
+    	pcnt_event_disable(self->unit, PCNT_EVT_THRES_1);
     }
 
     return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(esp32_dec_set_thresh1_obj, esp32_dec_set_thresh1);
+
+//-----------------------------------------------------------------
+STATIC mp_obj_t esp32_dec_disable_thresh0(mp_obj_t self_in, mp_obj_t thresh)
+{
+    esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    pcnt_event_disable(self->unit, PCNT_EVT_THRES_0);
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(esp32_dec_disable_thresh0_obj, esp32_dec_disable_thresh0);
+
+//-----------------------------------------------------------------
+STATIC mp_obj_t esp32_dec_disable_thresh1(mp_obj_t self_in, mp_obj_t thresh)
+{
+    esp32_dec_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    pcnt_event_disable(self->unit, PCNT_EVT_THRES_1);
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(esp32_dec_disable_thresh1_obj, esp32_dec_disable_thresh1);
 
 //-----------------------------------------------------------------
 STATIC mp_obj_t esp32_dec_get_irq_event(mp_obj_t self_in)
@@ -550,9 +572,11 @@ STATIC const mp_rom_map_elem_t esp32_dec_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_resume), MP_ROM_PTR(&esp32_dec_resume_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_set_thresh0), MP_ROM_PTR(&esp32_dec_set_thresh0_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_set_thresh1), MP_ROM_PTR(&esp32_dec_set_thresh1_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_disable_thresh0), MP_ROM_PTR(&esp32_dec_disable_thresh0_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_disable_thresh1), MP_ROM_PTR(&esp32_dec_disable_thresh1_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_irq), MP_ROM_PTR(&machine_dec_irq_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_get_irq_event), MP_ROM_PTR(&esp32_dec_get_irq_event_obj) },
-	
+
 	//class constants
 	{ MP_ROM_QSTR(MP_QSTR_EVT_L_LIM), MP_ROM_INT(EVT_L_LIM) },
 	{ MP_ROM_QSTR(MP_QSTR_EVT_H_LIM), MP_ROM_INT(EVT_H_LIM) },
